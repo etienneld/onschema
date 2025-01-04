@@ -1,0 +1,33 @@
+{
+    "name": "onschema",
+    "version": "0.1.0",
+    "description": "Schema validation using plain objects with full TypeScript inference",
+    "main": "dist/index.js",
+    "module": "dist/index.mjs",
+    "types": "dist/index.d.ts",
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "tsup src/index.ts --format cjs,esm --dts",
+        "typecheck": "tsc --noEmit"
+    },
+    "keywords": [
+        "typescript",
+        "validation",
+        "schema",
+        "types",
+        "onschema"
+    ],
+    "author": "Étienne Léonard-Dufour",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/etienneld/onschema.git"
+    },
+    "devDependencies": {
+        "typescript": "^5.0.0",
+        "tsup": "^8.0.0"
+    },
+    "sideEffects": false
+}
