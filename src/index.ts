@@ -1,37 +1,43 @@
-// Typescript-first validation library, 
-
-export type PrimitiveNumeric = 'uint' | 'uint8' | 'uint32' | 'int' | 'int8' | 'int32' | 'number'
+export type PrimitiveNumeric = 'uint' | 'uint8' | 'uint32' | 'int' | 'int8' | 'int32' | 'number';
 export type Primitive = 'null' | 'string' | 'boolean' | PrimitiveNumeric;
 
-export type SchemaProperty = Schema | SchemaOptional<any>;
-export type SchemaObject = { [k: string]: SchemaProperty };
+export type SchemaObject = { [k: string]: Schema };
 
-export type SchemaArray<T extends Schema> = ['array', T]
-export type SchemaOptional<T extends Schema> = ['optional', T]
-export type SchemaAnyOf<T extends Schema[]> = ['anyOf', ...T]
-export type SchemaRegex<Pattern extends string> = ['regex', Pattern]
+export type SchemaArray<T extends Schema> = ['array', T];
+export type SchemaOptional<T extends Schema> = ['optional', T];
+export type SchemaAnyOf<T extends Schema[]> = ['anyOf', ...T];
+export type SchemaLiteral<T extends string | number | boolean | null> = ['literal', T];
 
-export type Schema = Primitive | SchemaObject | SchemaAnyOf<any> | SchemaArray<any> | SchemaRegex<any>;
+export type Schema =
+    | Primitive
+    | SchemaObject
+    | SchemaAnyOf<any>
+    | SchemaArray<any>
+    | SchemaLiteral<any>
+    | SchemaOptional<any>;
+
 
 type OptionalKeys<T> = { [K in keyof T]: T[K] extends SchemaOptional<any> ? K : never }[keyof T];
 type RequiredKeys<T> = { [K in keyof T]: T[K] extends SchemaOptional<any> ? never : K }[keyof T];
+type Flatten<T> = T extends infer U ? { [K in keyof U]: U[K] } : never;
 
-export type Infer<T extends Schema | SchemaOptional<any>> =
+export type Infer<T extends Schema> =
     T extends 'null' ? null :
     T extends 'string' ? string :
-    T extends SchemaRegex<any> ? string :
     T extends 'boolean' ? boolean :
+    T extends SchemaLiteral<infer L> ? L :
     T extends PrimitiveNumeric ? number :
-    T extends SchemaAnyOf<infer U> ? (U extends Schema ? Infer<U> : never) :
     T extends SchemaArray<infer U> ? (U extends Schema ? Infer<U>[] : never) :
-    T extends SchemaObject ? {
-        [K in RequiredKeys<T>]: T[K] extends Schema ? Infer<T[K]> : never;
+    T extends SchemaAnyOf<infer U> ? Infer<U[number]> :
+    T extends SchemaOptional<infer U> ? Infer<U> | undefined :
+    T extends SchemaObject ? Flatten<{
+        [K in RequiredKeys<T>]: Infer<T[K]>;
     } & {
-        [K in OptionalKeys<T>]?: T[K] extends SchemaOptional<infer U> ? Infer<U> : never;
-    } :
+        [K in OptionalKeys<T>]?: Infer<T[K]>;
+    }> :
     never;
 
-export function object<T extends SchemaObject>(obj: T): T {
+export function object<T extends Record<string, Schema>>(obj: T): { [K in keyof T]: T[K] } {
     return obj;
 }
 
@@ -40,41 +46,42 @@ export function omit<T extends SchemaObject, Keys extends keyof T>(obj: T, keys:
     for (const key of keys) {
         delete newObj[key];
     }
-    return newObj
+    return newObj;
 }
 
 export function optional<T extends Schema>(t: T): ['optional', T] {
-    return ['optional', t]
+    return ['optional', t];
+}
+
+export function literal<T extends string | number | boolean | null>(value: T): ['literal', T] {
+    return ['literal', value];
 }
 
 export function array<T extends Schema>(t: T): ['array', T] {
-    return ['array', t]
+    return ['array', t];
 }
 
 export function anyOf<T extends Schema[]>(...types: T): ['anyOf', ...T] {
-    return ['anyOf', ...types];
+    return ['anyOf', ...types] as ['anyOf', ...T];
 }
 
 export function nullable<T extends Schema>(t: T) {
     return anyOf(t, 'null');
 }
 
-export function regex(pattern: TemplateStringsArray): ['regex', string] {
-    return ['regex', String.raw(pattern)]
-}
 
 function isInt(obj: unknown, bits?: 8 | 32): obj is number {
-    const min = bits == null ? Number.MAX_SAFE_INTEGER : -(2 ** (bits - 1))
-    const max = bits == null ? Number.MIN_SAFE_INTEGER : 2 ** (bits - 1) - 1
-    return typeof obj === 'number' && obj >= min && obj <= max && obj % 1 === 0
+    const min = bits == null ? -Number.MAX_SAFE_INTEGER : -(2 ** (bits - 1));
+    const max = bits == null ? Number.MAX_SAFE_INTEGER : (2 ** (bits - 1)) - 1;
+    return typeof obj === 'number' && obj >= min && obj <= max && obj % 1 === 0;
 }
 
 function isUint(obj: unknown, bits?: 8 | 32): obj is number {
-    const max = bits == null ? Number.MAX_SAFE_INTEGER : 2 ** bits - 1
-    return typeof obj === 'number' && obj >= 0 && obj <= max && obj % 1 === 0
+    const max = bits == null ? Number.MAX_SAFE_INTEGER : (2 ** bits) - 1;
+    return typeof obj === 'number' && obj >= 0 && obj <= max && obj % 1 === 0;
 }
 
-export function isValid<S extends Schema | SchemaOptional<any>>(obj: any, schema: S): obj is Infer<S> {
+export function isValid<S extends Schema>(obj: any, schema: S): obj is Infer<S> {
     if (typeof schema === 'string') {
         const type = schema as Primitive;
         switch (type) {
@@ -89,76 +96,58 @@ export function isValid<S extends Schema | SchemaOptional<any>>(obj: any, schema
             case 'uint32': return isUint(obj, 32);
             case 'string': return typeof obj === 'string';
             default:
-                const _: never = type
+                const _: never = type;
+                return false;
+        }
+    }
+    if (Array.isArray(schema)) {
+        const [type, param] = schema;
+        switch (type) {
+            case 'anyOf': {
+                const subSchemas = schema.slice(1)
+                return Array.isArray(subSchemas) && subSchemas.some(s => isValid(obj, s));
+            }
+            case 'array':
+                return Array.isArray(obj) && obj.every(item => isValid(item, param) as any);
+            case 'optional':
+                return obj === undefined || isValid(obj, param);
+            case 'literal':
+                return obj === param;
+            default:
+                const _: never = type;
                 return false;
         }
     }
     if (typeof schema === 'object') {
-        if (Array.isArray(schema)) {
-            const [type, param] = schema
-            switch (type) {
-                case 'anyOf': return Array.isArray(param) && param.some(s => isValid(obj, s));
-                case 'array': return Array.isArray(obj) && obj.every(item => isValid(item, param));
-                case 'optional': return obj === undefined || isValid(obj, param)
-                case 'regex': return (new RegExp(param)).test(obj)
-                default:
-                    const _: never = type
-                    return false;
-            }
-        }
-        if (typeof obj === 'object') {
-            return Object.entries(schema).every(([key, childSchema]) =>
-                isValid(obj[key], childSchema)
+        if (typeof obj === 'object' && obj !== null) {
+            return Object.entries(schema as any).every(([key, childSchema]) =>
+                isValid(obj[key], childSchema as any)
             );
         }
     }
     return false;
 }
 
-export function stripFields<S extends Schema | SchemaOptional<any>>(obj: Infer<S>, schema: S): Infer<S> | undefined {
-    function recursive<S extends Schema | SchemaOptional<any>>(obj: any, schema: S): any {
+export function stripFields<S extends Schema | SchemaOptional<any>>(obj: Infer<S>, schema: S): Infer<S> {
+    function recursiveStrip<S extends Schema | SchemaOptional<any>>(obj: any, schema: S): any {
         if (typeof obj === 'string') return obj;
         if (Array.isArray(schema)) {
             const [kind, subSchema] = schema;
             if (kind === 'optional' || kind === 'anyOf')
-                return recursive(obj, subSchema) as any
+                return recursiveStrip(obj, subSchema) as any
             if (kind === 'array' && Array.isArray(obj))
-                return obj.map(item => recursive(item, subSchema)) as any;
+                return obj.map(item => recursiveStrip(item, subSchema)) as any;
             throw new Error('obj not valid')
         }
-
         if (typeof schema === 'object') {
-            return Object.entries(schema).reduce(([key, subSchema]: any, newObj: any) => {
-                newObj[key] = recursive(obj[key], subSchema);
+            return Object.entries(schema).reduce((newObj: any, [key, subSchema]: any) => {
+                newObj[key] = recursiveStrip(obj[key], subSchema);
                 return newObj
             }, {})
         }
         return obj;
     }
-    if (!isValid(obj, schema)) return
-    return recursive(obj, schema)
+    // @ts-ignore
+    if (!isValid(obj, schema)) throw new Error('invalid object')
+    return recursiveStrip(obj, schema)
 }
-
-const mySchema = object({
-    name: 'string',
-    details: {
-        price: 'number'
-    }
-})
-
-const myObject: unknown = {
-    name: 'Product Name',
-    details: {
-        price: 29.99,
-    },
-};
-
-// Validate `myObject` based on `mySchema`
-if (isValid(myObject, mySchema)) {
-    const price: number = myObject.details.price
-    // ✅ After validation, TypeScript infers `myObject` matches the schema
-}
-
-// Incorrect usage outside of validation block
-// const price: number = myObject.details.price;
-// ❌ Error: Property 'details' does not exist on type 'unknown'
