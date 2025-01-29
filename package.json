@@ -10,7 +10,8 @@
     ],
     "scripts": {
         "build": "tsup src/index.ts --format cjs,esm --dts",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "test": "tsx --watch --test src/* "
     },
     "keywords": [
         "typescript",
@@ -19,15 +20,22 @@
         "types",
         "onschema"
     ],
-    "author": "Étienne Léonard-Dufour",
     "license": "MIT",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/etienneld/onschema.git"
     },
     "devDependencies": {
-        "typescript": "^5.0.0",
-        "tsup": "^8.0.0"
+        "@types/node": "^22.12.0",
+        "tsup": "^8.0.0",
+        "tsx": "^4.19.2",
+        "typescript": "^5.0.0"
     },
-    "sideEffects": false
+    "sideEffects": false,
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    }
 }
