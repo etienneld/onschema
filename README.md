@@ -1,18 +1,42 @@
 # OnSchema
 
-OnSchema is a lightweight, type-safe schema validation library that blends the simplicity of JSON Schema with the powerful type inference of TypeScript.
-Designed for developers who need both runtime validation and compile-time type safety,
-OnSchema offers a compact schema definition syntax that can be easily serialized to JSON, while automatically inferring TypeScript types from your schemas.
+A lightweight, type-safe schema validation library for TypeScript featuring:
+- Compact, JSON-compatible syntax using plain JavaScript objects
+- Full TypeScript type inference support
+- Zero dependencies
+- Efficient validation and field stripping
 
-## Features
+## Overview
 
-- **JSON-Serializable Schemas**: Define schemas with plain objects/arrays that can be stored as JSON
-- **TypeScript First**: Automatic type inference for validated data
-- **Compact Syntax**: More minimal than JSON Schema, more serializable than Zod
-- **Runtime Safety**: Comprehensive validation with detailed type checking
-- **Stripping Extra Fields**: Remove unexpected properties from objects
-- **Numeric Precision**: Support for int8, uint32, and other numeric types
-- **Composable Schemas**: Create complex types with arrays, optionals, unions, and literals
+OnSchema lets you define schemas using familiar JavaScript syntax while maintaining full type safety:
+
+```typescript
+const userSchema = {
+    name: 'string',
+    email: ['optional', 'string'],
+    address: {
+        street: 'string',
+        city: 'string',
+    }
+} as const;
+
+type User = Infer<typeof userSchema>
+// Infers to:
+// {
+//     name: string,
+//     email?: string,
+//     address: {
+//         street: string,
+//         city: string,
+//     }
+// }
+
+// Validate data against schema
+const isValid = isValid(data, userSchema);
+
+// Strip extra fields to match schema
+const cleaned = stripFields(data, userSchema);
+```
 
 ## Installation
 
@@ -20,289 +44,104 @@ OnSchema offers a compact schema definition syntax that can be easily serialized
 npm install onschema
 ```
 
-## Getting Started
+## Schema Syntax
+
+OnSchema schemas are composed of three main types: Primitives, Objects, and Complex types. All schemas are defined using plain JavaScript objects for maximum compatibility and readability.
+
+### 1. Primitive Types
+
+Basic data types that represent atomic values:
+
+| Type     | Description                     | TypeScript Equivalent |
+|----------|---------------------------------|--------------------|
+| `'string'` | Any string value | `string` |
+| `'boolean'` | True or false | `boolean` |
+| `'number'` | Any numeric value | `number` |
+| `'null'` | Null value | `null` |
+| `'int'` | Integer within safe integer range | `number` |
+| `'int8'` | 8-bit integer (-128 to 127) | `number` |
+| `'int32'` | 32-bit integer (-2^31 to 2^31-1) | `number` |
+| `'uint'` | Unsigned integer within safe range | `number` |
+| `'uint8'` | 8-bit unsigned integer (0 to 255) | `number` |
+| `'uint32'` | 32-bit unsigned integer (0 to 2^32-1) | `number` |
+
+### 2. Object Types
+
+Objects are defined as key-value mappings where values are other schema types:
 
 ```typescript
-import { object, optional, array, anyOf, literal, isValid } from 'onschema';
+type SchemaObject = { [key: string]: Schema | SchemaOptional<any> }
 
-// Define a schema
-const userSchema = {
-  id: 'uint32',
-  name: 'string',
-  email: ['optional', 'string'],
-  tags: ['array', 'string'],
-  status: [
-    'anyOf',
-    ['literal', 'active'],
-    ['literal', 'pending'],
-    ['literal', 'disabled']
-  ]
+// Example
+const addressSchema = {
+    street: 'string',
+    city: 'string',
+    zipCode: ['optional', 'string']
 } as const;
-
-// or use helpers: 
-
-const userSchema = object({
-  id: 'uint32',
-  name: 'string',
-  email: optional('string'),
-  tags: array('string'),
-  status: anyOf(literal('active'), literal('pending'), literal('disabled'))
-});
-
-// Infer TypeScript type
-type User = Infer<typeof userSchema>;
-/*
-Equivalent to:
-type User = {
-  id: number;
-  name: string;
-  email?: string | undefined;
-  tags: string[];
-  status: "active" | "pending" | "disabled";
-}
-*/
-
-// Validate data
-const userData = {
-  id: 42,
-  name: 'Alice',
-  tags: ['admin', 'user'],
-  status: 'active'
-};
-
-if (isValid(userData, userSchema)) {
-  // userData is now typed as User
-  console.log('Valid user:', userData);
-}
 ```
 
-## Core Concepts
+### 3. Complex Types
 
-### Schema Definition
+Special schema types for more advanced validation patterns:
 
-Schemas are built from primitive types and composable schema constructors:
+| Type | Syntax | Description |
+|------|---------|------------|
+| Optional | `['optional', Schema]` | Marks a field as optional in object types |
+| Array | `['array', Schema]` | Array of elements matching the given schema |
+| AnyOf | `['anyOf', ...Schema[]]` | Union type - matches any of the provided schemas |
+| Literal | `['literal', value]` | Exact value match (string, number, boolean, or null) |
 
-```typescript
-import { object, optional, array, literal } from 'onschema';
-
-const productSchema = object({
-  id: 'uint32',
-  name: 'string',
-  price: 'number',
-  dimensions: object({
-    width: 'number',
-    height: 'number',
-    depth: 'number'
-  }),
-  tags: array('string'),
-  status: optional(anyOf(literal('instock'), literal('backorder'))),
-  createdAt: 'uint32'
-});
-```
-
-### Type Inference
-
-Get automatic TypeScript types from your schemas:
+Example usage:
 
 ```typescript
-type Product = Infer<typeof productSchema>;
-/*
-{
-  id: number;
-  name: string;
-  price: number;
-  dimensions: {
-    width: number;
-    height: number;
-    depth: number;
-  };
-  tags: string[];
-  status?: "instock" | "backorder" | undefined;
-  createdAt: number;
-}
-*/
-```
-
-### Validation
-
-Validate data structures against your schemas:
-
-```typescript
-const validateProduct = (data: unknown) => {
-  if (isValid(data, productSchema)) {
-    // data is now properly typed
-    return processProduct(data);
-  }
-  throw new Error('Invalid product data');
-};
-```
-
-### Numeric Types
-
-Precision control for numbers:
-
-```typescript
-const sensorSchema = object({
-  temperature: 'int8',   // -128 to 127
-  pressure: 'uint32',    // 0 to 4,294,967,295
-  accuracy: 'number'     // Standard double-precision
-});
-```
-
-### Stripping Extra Fields
-
-Remove unexpected properties while validating:
-
-```typescript
-const rawData = {
-  id: 42,
-  name: 'Widget',
-  price: 9.99,
-  unknownField: 'should be removed'
-};
-
-const cleanData = stripFields(rawData, productSchema);
-// cleanData no longer contains unknownField
+const schema = {
+    tags: ['array', 'string'],                    // string[]
+    status: ['anyOf', 'string', 'null'],         // string | null
+    type: ['literal', 'user'],                   // 'user'
+    metadata: ['optional', { id: 'string' }]     // { id: string } | undefined
+} as const;
 ```
 
 ## API Reference
 
-### Primitive Types
+### Validation
 
 ```typescript
-type Primitive = 
-  | 'null'
-  | 'string'
-  | 'boolean'
-  | 'number'
-  | 'int' | 'int8' | 'int32'
-  | 'uint' | 'uint8' | 'uint32';
+function isValid<S extends Schema>(obj: any, schema: S): obj is Infer<S>
 ```
+Validates that an object matches a schema. Returns a type predicate for TypeScript type narrowing.
 
-### Schema Constructors
+### Field Stripping
 
-#### `object(schema: T)`
-Define object schemas with nested validation:
 ```typescript
-const addressSchema = object({
-  street: 'string',
-  city: 'string',
-  zip: 'uint32'
-});
+function stripFields<S extends Schema>(obj: Infer<S>, schema: S): Infer<S> | undefined
 ```
+Removes fields not defined in the schema. Returns undefined if validation fails.
 
-#### `array(type: Schema)`
-Array validation:
+### Schema Construction Helpers
+
 ```typescript
-const numberArraySchema = array('number');
-```
+// Object schema helper with proper type inference
+function object<T extends Record<string, Schema>>(obj: T): T
 
-#### `optional(type: Schema)`
-Optional properties:
-```typescript
-const userSchema = object({
-  name: 'string',
-  age: optional('uint32')
-});
-```
+// Remove fields from object schema
+function omit<T extends SchemaObject, K extends keyof T>(obj: T, keys: K[]): Omit<T, K>
 
-#### `anyOf(...types: Schema[])`
-Type unions:
-```typescript
-const idSchema = anyOf('string', 'uint32');
-```
-
-#### `literal(value: Literal)`
-Exact value matching:
-```typescript
-const trueLiteral = literal(true);
-const answerLiteral = literal(42);
-```
-
-#### `nullable(type: Schema)`
-Shorthand for optional null:
-```typescript
-const nullableString = nullable('string');
-// Equivalent to anyOf('string', 'null')
-```
-
-### Validation Functions
-
-#### `isValid(data: unknown, schema: Schema): boolean`
-Type-safe validation:
-```typescript
-if (isValid(input, userSchema)) {
-  // input is now typed as User
-}
-```
-
-#### `stripFields(data: unknown, schema: Schema): Infer<Schema>`
-Remove extra fields while validating:
-```typescript
-const clean = stripFields(rawData, schema);
+// Complex type helpers
+function optional<T extends Schema>(schema: T): SchemaOptional<T>
+function array<T extends Schema>(schema: T): SchemaArray<T>
+function anyOf<T extends Schema[]>(...types: T): SchemaAnyOf<T>
+function literal<T extends string | number | boolean | null>(value: T): SchemaLiteral<T>
+function nullable<T extends Schema>(schema: T): SchemaAnyOf<[T, 'null']>
 ```
 
 ### Type Inference
 
-#### `Infer<Schema>`
-Get the TypeScript type from any schema:
 ```typescript
-type UserArray = Infer<typeof userArraySchema>;
-// Equivalent to User[]
+type Infer<T extends Schema>
 ```
+Converts OnSchema types to TypeScript types. Used automatically by validation functions and available for manual type extraction.
 
-## Advanced Usage
+## License
 
-### Recursive Schemas
-
-Define self-referential types using `() => Schema`:
-
-```typescript
-interface Category {
-  name: string;
-  subcategories: Category[];
-}
-
-const categorySchema: SchemaObject = object({
-  name: 'string',
-  subcategories: array(() => categorySchema)
-});
-```
-
-### Schema Composition
-
-Combine schemas using utility functions:
-
-```typescript
-const baseSchema = object({
-  id: 'uint32',
-  createdAt: 'uint32'
-});
-
-const userSchema = {
-  ...baseSchema,
-  name: 'string',
-  email: 'string'
-};
-```
-
-### Strict Numeric Validation
-
-Precision-enforced number types:
-
-| Type     | Range                          |
-|----------|--------------------------------|
-| int8     | -128 to 127                    |
-| uint8    | 0 to 255                       |
-| int32    | -2,147,483,648 to 2,147,483,647|
-| uint32   | 0 to 4,294,967,295             |
-| number   | Standard IEEE double precision |
-
-## Comparison with Other Libraries
-
-| Feature              | OnSchema | Zod     | JSON Schema |
-|----------------------|----------|---------|-------------|
-| TS Inference         | ✅       | ✅      | ❌          |
-| JSON-Serializable    | ✅       | ❌      | ✅          |
-| Runtime Safety       | ✅       | ✅      | ✅          |
-| Numeric Constraints  | ✅       | ❌      | ✅          |
+MIT
