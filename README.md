@@ -46,7 +46,7 @@ npm install onschema
 
 ## Schema Syntax
 
-OnSchema schemas are composed of three main types: Primitives, Objects, and Complex types. All schemas are defined using plain JavaScript objects for maximum compatibility and readability.
+OnSchema schemas are composed of three main types: Primitives, Objects, and Complex types. All schemas are defined using plain JavaScript objects ([an optionally, using helpers](#schema-construction-helpers)).
 
 ### 1. Primitive Types
 
