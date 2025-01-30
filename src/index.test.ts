@@ -19,9 +19,15 @@ type TestNumber = Assert<Equal<Infer<'number'>, number>>;
 type TestInt8 = Assert<Equal<Infer<'int8'>, number>>;
 
 {
+    const a = { a: 'string', b: ['optional', 'number'] } as const;
+    const b = object({ a: 'string', b: optional('number') })
+    type TestHelpers = Assert<Equal<typeof a, typeof b>>
+}
+
+{
     const a = object({ a: 'string', b: optional('number') })
     type A = Infer<typeof a>
-    type B = { a: string; b?: number | undefined }
+    type B = { a: string; b?: number }
     type TestObject = Assert<Equal<A, B>>;
 }
 
@@ -36,11 +42,12 @@ type TestLiteralStr = Assert<Equal<Infer<['literal', 'test']>, 'test'>>;
 type TestLiteralNum = Assert<Equal<Infer<['literal', 42]>, 42>>;
 
 {
-    const a = object({ foo: optional(object({ bar: 'boolean' })) })
+    const a = { foo: ['optional', { bar: 'boolean' }] } as const;
     type A = Infer<typeof a>
-    type B = { foo?: { bar: boolean } | undefined }
+    type B = { foo?: { bar: boolean } }
     type TestNestedOptional = Assert<Equal<A, B>>;
 }
+
 
 // Runtime-level testing
 
@@ -61,9 +68,8 @@ describe('Validation Library', () => {
             name: 'string',
             age: optional('number')
         });
-
-        assert.strictEqual(isValid({ name: 'Alice' }, schema), true);
         assert.strictEqual(isValid({ name: 'Bob', age: 30 }, schema), true);
+        assert.strictEqual(isValid({ name: 'Alice' }, schema), true);
         assert.strictEqual(isValid({ name: 'Charlie', age: '30' }, schema), false);
     });
 
@@ -85,7 +91,7 @@ describe('Validation Library', () => {
         const stripped = stripFields(obj, schema);
 
         assert.deepEqual(stripped, { a: 'test' });
-        assert.strictEqual('b' in stripped, false);
+        assert.strictEqual(stripped !== undefined && 'b' in stripped, false);
     });
 
     test('nested object validation', () => {
