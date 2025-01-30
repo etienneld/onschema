@@ -3,11 +3,13 @@ export type Primitive = 'null' | 'string' | 'boolean' | PrimitiveNumeric;
 
 export type SchemaObject = { [k: string]: Schema };
 
+// Helper types for different schema variants
 export type SchemaArray<T extends Schema> = ['array', T];
 export type SchemaOptional<T extends Schema> = ['optional', T];
 export type SchemaAnyOf<T extends Schema[]> = ['anyOf', ...T];
 export type SchemaLiteral<T extends string | number | boolean | null> = ['literal', T];
 
+/** Main Schema type that can represent any valid schema structure */
 export type Schema =
     | Primitive
     | SchemaObject
@@ -16,11 +18,11 @@ export type Schema =
     | SchemaLiteral<any>
     | SchemaOptional<any>;
 
-
 type OptionalKeys<T> = { [K in keyof T]: T[K] extends SchemaOptional<any> ? K : never }[keyof T];
 type RequiredKeys<T> = { [K in keyof T]: T[K] extends SchemaOptional<any> ? never : K }[keyof T];
 type Flatten<T> = T extends infer U ? { [K in keyof U]: U[K] } : never;
 
+/** Type inference util - converts schema types to TypeScript types */
 export type Infer<T extends Schema> =
     T extends 'null' ? null :
     T extends 'string' ? string :
