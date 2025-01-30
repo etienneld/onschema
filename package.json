@@ -1,6 +1,6 @@
 {
     "name": "onschema",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Schema validation using plain objects with full TypeScript inference",
     "main": "dist/index.js",
     "module": "dist/index.mjs",
@@ -11,7 +11,7 @@
     "scripts": {
         "build": "tsup src/index.ts --format cjs,esm --dts",
         "typecheck": "tsc --noEmit",
-        "test": "tsx --watch --test src/* "
+        "test": "tsx --watch --test src/*"
     },
     "keywords": [
         "typescript",
