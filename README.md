@@ -1,7 +1,7 @@
 # OnSchema
 
 A lightweight, type-safe schema validation library for TypeScript featuring:
-- Compact, JSON-compatible syntax using plain JavaScript objects
+- Compact, JSON-compatible syntax using plain old JavaScript objects
 - Full TypeScript type inference support
 - Zero dependencies
 - Efficient validation and field stripping
@@ -46,13 +46,14 @@ npm install onschema
 
 ## Schema Syntax
 
-OnSchema schemas are composed of three main types: Primitives, Objects, and Complex types. All schemas are defined using plain JavaScript objects ([an optionally, using helpers](#schema-construction-helpers)).
+OnSchema schemas are composed of three main types: Primitives, Objects, and Complex types.
+All schemas are defined using plain old JS objects ([an optionally, using helpers](#schema-construction-helpers)).
 
 ### 1. Primitive Types
 
 Basic data types that represent atomic values:
 
-| Type     | Description                     | TypeScript Equivalent |
+| Syntax     | Description                     | TS Equivalent |
 |----------|---------------------------------|--------------------|
 | `'string'` | Any string value | `string` |
 | `'boolean'` | True or false | `boolean` |
@@ -84,12 +85,12 @@ const addressSchema = {
 
 Special schema types for more advanced validation patterns:
 
-| Type | Syntax | Description |
-|------|---------|------------|
-| Optional | `['optional', Schema]` | Marks a field as optional in object types |
-| Array | `['array', Schema]` | Array of elements matching the given schema |
-| AnyOf | `['anyOf', ...Schema[]]` | Union type - matches any of the provided schemas |
-| Literal | `['literal', value]` | Exact value match (string, number, boolean, or null) |
+| Syntax | Description  |
+|---------|------------|
+| `['optional', T]` | Marks a field as optional in object types |
+| `['array', T]` | Array of elements matching the given schema |
+| `['anyOf', T1, T2, T3,...]` | Union type - matches any of the provided schemas |
+| `['literal', value]` | Exact value match (string, number, boolean, or null) |
 
 Example usage:
 
