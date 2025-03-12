@@ -1,5 +1,5 @@
 export type PrimitiveNumeric = 'uint' | 'uint8' | 'uint32' | 'int' | 'int8' | 'int32' | 'number';
-export type Primitive = 'null' | 'string' | 'boolean' | PrimitiveNumeric;
+export type Primitive = 'null' | 'string' | 'boolean' | PrimitiveNumeric | 'bigint';
 
 export type SchemaObject = { [k: string]: Schema | SchemaOptional<any> };
 
@@ -7,16 +7,17 @@ export type SchemaObject = { [k: string]: Schema | SchemaOptional<any> };
 export type SchemaArray<T extends Schema> = readonly ['array', T];
 export type SchemaOptional<T extends Schema> = readonly ['optional', T];
 export type SchemaAnyOf<T extends Schema[]> = readonly ['anyOf', ...T];
-export type SchemaLiteral<T extends string | number | boolean | null> = readonly ['literal', T];
+export type SchemaLiteral<T extends string | number | boolean | null | bigint> = readonly ['literal', T];
+export type SchemaEnum<T extends readonly (string | number | boolean | null | bigint)[]> = readonly ['enum', ...T];
 
 /** Main Schema type that can represent any valid schema structure */
-
 export type Schema =
     | Primitive
     | SchemaObject
     | SchemaAnyOf<any>
     | SchemaArray<any>
     | SchemaLiteral<any>
+    | SchemaEnum<any>;
 
 type OptionalKeys<T> = { [K in keyof T]: T[K] extends SchemaOptional<any> ? K : never }[keyof T];
 type RequiredKeys<T> = { [K in keyof T]: T[K] extends SchemaOptional<any> ? never : K }[keyof T];
@@ -24,12 +25,15 @@ type Flatten<T> = T extends infer U ? { [K in keyof U]: Exclude<U[K], undefined>
 
 type StripOptional<T extends Schema | SchemaOptional<any>> =
     T extends SchemaOptional<infer U> ? U : T
+
 /** Type inference util - converts schema types to TypeScript types */
 export type Infer<T extends Schema> =
     T extends 'null' ? null :
     T extends 'string' ? string :
     T extends 'boolean' ? boolean :
+    T extends 'bigint' ? bigint :
     T extends SchemaLiteral<infer L> ? L :
+    T extends SchemaEnum<infer U> ? U[number] :
     T extends PrimitiveNumeric ? number :
     T extends SchemaArray<infer U> ? (U extends Schema ? Infer<U>[] : never) :
     T extends SchemaAnyOf<infer U> ? Infer<U[number]> :
@@ -56,7 +60,7 @@ export function optional<T extends Schema>(t: T): readonly ['optional', T] {
     return ['optional', t];
 }
 
-export function literal<T extends string | number | boolean | null>(value: T): readonly ['literal', T] {
+export function literal<T extends string | number | boolean | null | bigint>(value: T): readonly ['literal', T] {
     return ['literal', value];
 }
 
@@ -66,6 +70,10 @@ export function array<T extends Schema>(t: T): readonly ['array', T] {
 
 export function anyOf<T extends Schema[]>(...types: T): readonly ['anyOf', ...T] {
     return ['anyOf', ...types] as ['anyOf', ...T];
+}
+
+export function enumOf<T extends readonly (string | number | boolean | null | bigint)[]>(...values: T): readonly ['enum', ...T] {
+    return ['enum', ...values] as const;
 }
 
 export function nullable<T extends Schema>(t: T) {
@@ -98,6 +106,7 @@ export function isValid<S extends Schema>(obj: any, schema: S): obj is Infer<S> 
             case 'null': return obj === null;
             case 'number': return typeof obj === 'number';
             case 'boolean': return typeof obj === 'boolean';
+            case 'bigint': return typeof obj === 'bigint';
             case 'int': return isInt(obj);
             case 'int8': return isInt(obj, 8);
             case 'int32': return isInt(obj, 32);
@@ -111,16 +120,17 @@ export function isValid<S extends Schema>(obj: any, schema: S): obj is Infer<S> 
         }
     }
     if (Array.isArray(schema)) {
-        const [type, param] = schema;
+        const [type, ...params] = schema;
         switch (type) {
-            case 'anyOf': {
-                const subSchemas = schema.slice(1)
-                return Array.isArray(subSchemas) && subSchemas.some(s => isValid(obj, s));
-            }
+            case 'anyOf':
+                return params.some(s => isValid(obj, s));
             case 'array':
-                return Array.isArray(obj) && obj.every(item => isValid(item, param) as any);
+                // @ts-ignore
+                return Array.isArray(obj) && obj.every(item => isValid(item, params[0]));
             case 'literal':
-                return obj === param;
+                return obj === params[0];
+            case 'enum':
+                return params.includes(obj);
             default:
                 // @ts-ignore: type is broken here
                 const _: never = type;
@@ -143,7 +153,7 @@ export function isValid<S extends Schema>(obj: any, schema: S): obj is Infer<S> 
 
 export function stripFields<S extends Schema>(obj: Infer<S>, schema: S): Infer<S> | undefined {
     function recursiveStrip<S extends Schema | SchemaOptional<any>>(obj: any, schema: S): any {
-        if (typeof obj === 'string') return obj;
+        if (typeof obj === 'string' || typeof obj === 'bigint') return obj;
         if (Array.isArray(schema)) {
             const [kind, subSchema] = schema;
             if (kind === 'anyOf')

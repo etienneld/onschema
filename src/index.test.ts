@@ -1,4 +1,4 @@
-import { anyOf, array, Infer, isValid, literal, object, optional, stripFields } from ".";
+import { anyOf, array, enumOf, Infer, isValid, literal, object, optional, stripFields } from ".";
 import { describe, test } from 'node:test';
 import assert from 'node:assert';
 
@@ -17,6 +17,7 @@ type TestString = Assert<Equal<Infer<'string'>, string>>;
 type TestBoolean = Assert<Equal<Infer<'boolean'>, boolean>>;
 type TestNumber = Assert<Equal<Infer<'number'>, number>>;
 type TestInt8 = Assert<Equal<Infer<'int8'>, number>>;
+type TestBigInt = Assert<Equal<Infer<'bigint'>, bigint>>;
 
 {
     const a = { a: 'string', b: ['optional', 'number'] } as const;
@@ -40,12 +41,20 @@ type TestStringArray = Assert<Equal<Infer<['array', 'string']>, string[]>>;
 
 type TestLiteralStr = Assert<Equal<Infer<['literal', 'test']>, 'test'>>;
 type TestLiteralNum = Assert<Equal<Infer<['literal', 42]>, 42>>;
+type TestLiteralBigInt = Assert<Equal<Infer<['literal', 10n]>, 10n>>;
 
 {
     const a = { foo: ['optional', { bar: 'boolean' }] } as const;
     type A = Infer<typeof a>
     type B = { foo?: { bar: boolean } }
     type TestNestedOptional = Assert<Equal<A, B>>;
+}
+
+{
+    const e = enumOf('success', 200, true, null, 123n);
+    type E = Infer<typeof e>;
+    type Expected = 'success' | 200 | true | null | 123n;
+    type TestEnum = Assert<Equal<E, Expected>>;
 }
 
 
@@ -61,6 +70,10 @@ describe('Validation Library', () => {
 
         assert.strictEqual(isValid(127, 'int8'), true);
         assert.strictEqual(isValid(128, 'int8'), false);
+
+        // bigint validation
+        assert.strictEqual(isValid(10n, 'bigint'), true);
+        assert.strictEqual(isValid(10, 'bigint'), false);
     });
 
     test('object validation', () => {
@@ -85,6 +98,7 @@ describe('Validation Library', () => {
         assert.strictEqual(isValid(42, schema), true);
         assert.strictEqual(isValid(true, schema), false);
     });
+
     test('stripFields functionality', () => {
         const schema = object({ a: 'string' });
         const obj = { a: 'test', b: 42 };
@@ -126,5 +140,35 @@ describe('Validation Library', () => {
         const schema = literal('success');
         assert.strictEqual(isValid('success', schema), true);
         assert.strictEqual(isValid('failure', schema), false);
+    });
+
+    describe('enum validation', () => {
+        test('valid enum values', () => {
+            const schema = enumOf('success', 200, true, null, 99n);
+            assert.strictEqual(isValid('success', schema), true);
+            assert.strictEqual(isValid(200, schema), true);
+            assert.strictEqual(isValid(true, schema), true);
+            assert.strictEqual(isValid(null, schema), true);
+            assert.strictEqual(isValid(99n, schema), true);
+        });
+
+        test('invalid enum value', () => {
+            const schema = enumOf('success', 200);
+            assert.strictEqual(isValid('failure', schema), false);
+            assert.strictEqual(isValid(201, schema), false);
+        });
+
+        test('case sensitivity for strings', () => {
+            const schema = enumOf('Success');
+            assert.strictEqual(isValid('success', schema), false);
+            assert.strictEqual(isValid('Success', schema), true);
+        });
+
+        test('null handling in enum', () => {
+            const schema = enumOf('null', null);
+            assert.strictEqual(isValid(null, schema), true);
+            assert.strictEqual(isValid('null', schema), true);
+            assert.strictEqual(isValid(undefined, schema), false);
+        });
     });
 });
